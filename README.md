@@ -31,7 +31,7 @@ https://pipenv.pypa.io/en/latest/installation.html
 
 ### altpoet
 
-`git clone https://github.com/EbookFoundation/altpoet.git`
+`git clone https://github.com/gutenbergtools/altpoet.git`
 
 create a python env in the new altpoet directory:
 `pipenv shell`
