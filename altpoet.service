@@ -1,0 +1,14 @@
+[Unit]
+Description=altpoet
+
+[Service]
+ExecStart=/var/lib/altpoet/altpoet/.venv/bin/uwsgi --ini /var/lib/altpoet/altpoet/uwsgi.ini
+RuntimeDirectory=uwsgi
+Restart=always
+KillSignal=SIGQUIT
+Type=notify
+StandardError=syslog
+NotifyAccess=all
+
+[Install]
+WantedBy=multi-user.target

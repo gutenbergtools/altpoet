@@ -83,7 +83,7 @@ https://pipenv.pypa.io/en/latest/installation.html
 
     `./src/manage.py load_images [path to unzipped data file] `
 
-8. start the server
+8. start the development server
 
    `./src/manage.py runserver`
 
@@ -91,3 +91,77 @@ The app is now accessible on port 8000, eg:
 * http://127.0.0.1:8000/admin/
 * http://127.0.0.1:8000/api/documents/
 
+### Production with Apache
+
+For a production environment, use [uwsgi](https://uwsgi-docs.readthedocs.io/en/latest/)
+behind Apache. The following instructions and associated service files
+(`altpoet.service` & `uwsgi.ini`) assume that the repo is checked out under
+`/var/lib/altpoet/altpoet` and that the database and pipenv virtualenv have
+been set up per the instructions above.
+
+Start by updating your `local_settings.py` file (or creating one, per the above)
+and setting `ALLOWED_HOSTS` for the domain and a location to serve the static
+files (currently only used for the django admin interface):
+
+```python
+ALLOWED_HOSTS = ["altpoet.pglaf.org"]
+STATIC_ROOT = "/var/lib/altpoet/static"
+```
+
+Now collect the static files to be served by Apache:
+
+```bash
+pipenv shell
+./src/manage.py collectstatic
+```
+
+Finally wire up and start all the services as root:
+
+1. Install the systemd service and start it:
+
+   ```bash
+   ln -s /var/lib/altpoet/altpoet/altpoet.service /etc/systemd/system/altpoet.service
+   systemctl daemon-reload
+   systemctl start altpoet
+   ```
+
+   You should now be able to curl the website:
+
+   `curl http://localhost:8001/`
+
+2. Enable the `proxy` and `proxy_uwsgi` Apache modules:
+
+   ```bash
+   a2enmod proxy
+   a2enmod proxy_uwsgi
+   ```
+
+3. Create a site in Apache that will proxy your VirtualHost, like
+   `/etc/apache2/sites-available/altpoet.conf`:
+
+   ```
+   <VirtualHost altpoet.pglaf.org:80>
+       ServerName altpoet.pglaf.org
+       ErrorLog /var/log/apache2/altpoet-error.log
+       CustomLog /var/log/apache2/altpoet-access.log common
+
+       DocumentRoot /var/lib/altpoet
+       <Directory "/var/lib/altpoet">
+           AllowOverride None
+           Require all granted
+       </Directory>
+
+       ProxyPass /static/ !
+       ProxyPass "/" "uwsgi://localhost:8001/"
+   </VirtualHost>
+   ```
+
+   Then enable it and reload Apache:
+
+   ```bash
+   a2ensite altpoet
+   systemctl reload apache2
+   ```
+
+You may need to adjust the uwsgi configuration in `/var/lib/altpoet/altpoet/uwsgi.ini`
+based on your server workload.
