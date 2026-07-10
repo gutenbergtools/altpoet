@@ -45,21 +45,18 @@ class HomepageView(generic.TemplateView):
 
 class BookEditView(generic.View):
     def editor_url(request, item):
-        host = request.get_host().split(':')[0]
-        url = f"{request.scheme}://{host}:8443/alttext/?book={item}"
-        print(url)
+        host = request.get_host()
+        url = f"{request.scheme}://{host}/alttexteditor/?book={item}"
         return url
 
     def get(self, request, *args, **kwargs):
         if request.user.is_authenticated:
-            print(request.GET)
             book = request.GET.get('item', None)
             if book and type(book) == list:
                 book = book[0]
             try:
                 if book and book[0] == "?":
                     item = randint(1, Document.objects.count())
-                    print(item)
                     item = Document.objects.get(id=item).item
                 else:   
                     item = Document.objects.get(item=book).item               
