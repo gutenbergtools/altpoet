@@ -1,6 +1,8 @@
 # Alt-Poet
 
-This is an application to edit alt-text (for Project Gutenberg)
+This is an application to edit alt-text (for Project Gutenberg). This backend
+pairs with the [alt-text-editor](https://github.com/gutenbergtools/alt-text-editor)
+front-end.
 
 ## Installation
 
@@ -87,7 +89,7 @@ https://pipenv.pypa.io/en/latest/installation.html
 
    `./src/manage.py runserver`
 
-The app is now accessible on port 8000, eg:
+The django app is now accessible on port 8000, eg:
 * http://127.0.0.1:8000/admin/
 * http://127.0.0.1:8000/api/documents/
 
@@ -99,12 +101,20 @@ behind Apache. The following instructions and associated service files
 `/var/lib/altpoet/altpoet` and that the database and pipenv virtualenv have
 been set up per the instructions above.
 
+This also assumes that you've checked out [alt-text-editor](https://github.com/gutenbergtools/alt-text-editor)
+in `/var/lib/altpoet/alt-text-editor` and built it per its instructions. The Apache
+config below is going to serve `/var/lib/altpoet/alt-text-editor/alt-text-react-app/dist`
+at `/alttexteditor`.
+
 Start by updating your `local_settings.py` file (or creating one, per the above)
 and setting `ALLOWED_HOSTS` for the domain and a location to serve the static
 files (currently only used for the django admin interface):
 
 ```python
+DEBUG = False
 ALLOWED_HOSTS = ["altpoet.pglaf.org"]
+CORS_ALLOWED_ORIGINS = ["https://altpoet.pglaf.org"]
+CSRF_TRUSTED_ORIGINS = CORS_ALLOWED_ORIGINS
 STATIC_ROOT = "/var/lib/altpoet/static"
 ```
 
@@ -151,6 +161,9 @@ Finally wire up and start all the services as root:
            Require all granted
        </Directory>
 
+       Alias /alttexteditor /var/lib/altpoet/alt-text-editor/alt-text-react-app/dist
+
+       ProxyPass /alttexteditor !
        ProxyPass /static/ !
        ProxyPass "/" "uwsgi://localhost:8001/"
    </VirtualHost>
