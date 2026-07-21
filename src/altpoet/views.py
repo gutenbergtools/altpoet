@@ -6,6 +6,7 @@ from django.contrib.contenttypes.models import ContentType
 from django.db import transaction
 from django.http import HttpResponse, HttpResponseRedirect
 from django.shortcuts import get_object_or_404
+from django.utils.dateparse import parse_datetime
 from django.views import generic
 
 from rest_framework import generics, permissions, status, viewsets, exceptions
@@ -25,11 +26,28 @@ from altpoet.models import (
 
 from altpoet.serializers import (
     AltSerializer,
+    DocumentChangedSerializer,
     DocumentSerializer,
     ImgSerializer,
     UserSerializer,
     UserSubmissionSerializer,
 )
+
+
+class IsAuthenticatedOrEbookmakerKey(permissions.BasePermission):
+    ''' logged-in users get normal access; the ebookmaker API key gets read-only access '''
+    def has_permission(self, request, view):
+        if request.user.is_authenticated:
+            return True
+        return (request.method in permissions.SAFE_METHODS and
+                bool(settings.EBOOKMAKER_API_KEY) and
+                request.headers.get('X-Api-Key') == settings.EBOOKMAKER_API_KEY)
+
+    @staticmethod
+    def is_ebookmaker(request):
+        return (not request.user.is_authenticated and
+                bool(settings.EBOOKMAKER_API_KEY) and
+                request.headers.get('X-Api-Key') == settings.EBOOKMAKER_API_KEY)
 
 
 class HomepageView(generic.TemplateView):
@@ -92,7 +110,30 @@ class DocumentViewSet(viewsets.ModelViewSet):
     """
     queryset = Document.objects.all().order_by('item')
     serializer_class = DocumentSerializer
-    permission_classes = [permissions.IsAuthenticated]
+    permission_classes = [IsAuthenticatedOrEbookmakerKey]
+
+    def get_queryset(self):
+        ''' with ?changed_since, return only documents whose preferred alt text changed after that time '''
+        queryset = super().get_queryset()
+        since = self.request.query_params.get('changed_since')
+        if since is not None:
+            since = parse_datetime(since)
+            if since is None:
+                raise exceptions.ValidationError(
+                    {'changed_since': 'use an ISO 8601 datetime, e.g. 2026-07-20T00:00:00Z'})
+            queryset = queryset.filter(alts_updated__gt=since)
+        return queryset
+
+    def get_serializer_class(self):
+        ''' changed_since polling returns just item + alts_updated '''
+        if self.action == 'list' and 'changed_since' in self.request.query_params:
+            return DocumentChangedSerializer
+        return super().get_serializer_class()
+
+    def paginate_queryset(self, queryset):
+        if 'changed_since' in self.request.query_params:
+            return None
+        return super().paginate_queryset(queryset)
 
 
     # same as get_project_item, but doesn't serialize and return document
@@ -190,31 +231,12 @@ class DocumentViewSet(viewsets.ModelViewSet):
         except Document.DoesNotExist:
             return Response({'detail': "Document Doesn't Exist"},
                 status=status.HTTP_400_BAD_REQUEST)
+        if IsAuthenticatedOrEbookmakerKey.is_ebookmaker(request):
+            alt_map = {img.img_id: img.alt.text
+                       for img in document.imgs.select_related('alt') if img.alt}
+            return Response(alt_map, status=status.HTTP_200_OK)
         serializer = DocumentSerializer(document)
         return Response(serializer.data, status=status.HTTP_200_OK)
-
-    @action(detail=False, methods=["GET"], url_path='alts', 
-            url_name='alts', permission_classes=[])
-    def alts(self, request, *args, **kwargs):
-        '''
-        returns the preferred alt text for each img in a document via img_id.
-        used by ebookmaker and authenticated with its own API key instead of a login.
-        '''
-        api_key = request.headers.get('X-Api-Key', '')
-        if not settings.EBOOKMAKER_API_KEY or api_key != settings.EBOOKMAKER_API_KEY:
-            return Response({'detail': 'Invalid API Key'}, status=status.HTTP_403_FORBIDDEN)
-        item = request.query_params.get('item')
-        if item is None:
-            return Response({'detail': "Item Not Found"}, status=status.HTTP_400_BAD_REQUEST)
-        try:
-            project = Project.objects.get(name='Project Gutenberg')
-            document = Document.objects.get(project=project, item=item)
-        except (Project.DoesNotExist, Document.DoesNotExist):
-            return Response({'detail': "Document Doesn't Exist"},
-                status=status.HTTP_404_NOT_FOUND)
-        alt_map = {img.img_id: img.alt.text
-                   for img in document.imgs.select_related('alt') if img.alt}
-        return Response(alt_map, status=status.HTTP_200_OK)
 
     @action(detail=True, methods=['POST'], url_path='add_ai_alts', 
             url_name='add_ai_alts', name='Add AI Alts')

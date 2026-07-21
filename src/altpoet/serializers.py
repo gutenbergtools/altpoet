@@ -56,6 +56,12 @@ class DocumentSerializer(serializers.ModelSerializer):
         model = Document
         fields = ['project', 'id', 'item', 'status', 'base', 'imgs', 'detail']
 
+class DocumentChangedSerializer(serializers.ModelSerializer):
+    ''' minimal serializer for ebookmaker polling: just the PG id and when alts last changed '''
+    class Meta:
+        model = Document
+        fields = ['item', 'alts_updated']
+
 class UserSubmissionSerializer(serializers.ModelSerializer):
     source = serializers.SlugRelatedField(
         many=False, read_only=True, slug_field='name')
