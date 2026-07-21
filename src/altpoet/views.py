@@ -193,6 +193,29 @@ class DocumentViewSet(viewsets.ModelViewSet):
         serializer = DocumentSerializer(document)
         return Response(serializer.data, status=status.HTTP_200_OK)
 
+    @action(detail=False, methods=["GET"], url_path='alts', 
+            url_name='alts', permission_classes=[])
+    def alts(self, request, *args, **kwargs):
+        '''
+        returns the preferred alt text for each img in a document via img_id.
+        used by ebookmaker and authenticated with its own API key instead of a login.
+        '''
+        api_key = request.headers.get('X-Api-Key', '')
+        if not settings.EBOOKMAKER_API_KEY or api_key != settings.EBOOKMAKER_API_KEY:
+            return Response({'detail': 'Invalid API Key'}, status=status.HTTP_403_FORBIDDEN)
+        item = request.query_params.get('item')
+        if item is None:
+            return Response({'detail': "Item Not Found"}, status=status.HTTP_400_BAD_REQUEST)
+        try:
+            project = Project.objects.get(name='Project Gutenberg')
+            document = Document.objects.get(project=project, item=item)
+        except (Project.DoesNotExist, Document.DoesNotExist):
+            return Response({'detail': "Document Doesn't Exist"},
+                status=status.HTTP_404_NOT_FOUND)
+        alt_map = {img.img_id: img.alt.text
+                   for img in document.imgs.select_related('alt') if img.alt}
+        return Response(alt_map, status=status.HTTP_200_OK)
+
     @action(detail=True, methods=['POST'], url_path='add_ai_alts', 
             url_name='add_ai_alts', name='Add AI Alts')
     def add_ai_alts(self, request, pk=None):
