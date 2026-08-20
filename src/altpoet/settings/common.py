@@ -190,3 +190,6 @@ LOGIN_REDIRECT_URL = "/"
 LOGOUT_REDIRECT_URL = "/"
 
 ANTHROPIC_API_KEY = ""
+
+OPDS_SEARCH_URL = "https://opds-test.pglaf.org/opds/search"
+OPDS_SEARCH_LIMIT = 100

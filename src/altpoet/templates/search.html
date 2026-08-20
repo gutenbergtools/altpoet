@@ -1,0 +1,47 @@
+{% extends "base.html" %}
+
+{% block title %}Search books — AltPoet{% endblock %}
+
+{% block content %}
+<h1>Search books</h1>
+<form action="{% url 'search' %}" method="get">
+<input type="search" name="q" value="{{ q }}">
+<button type="submit">Search</button>
+</form>
+<p>Looks at title, author, and subject together. Use or for either word, "quotes" for a phrase.</p>
+<p>Sort:
+{% for key, label, href in sorts %}
+{% if key == sort %}<strong>{{ label }}</strong>{% else %}<a href="{{ href }}">{{ label }}</a>{% endif %}{% if not forloop.last %} · {% endif %}
+{% endfor %}
+</p>
+{% if error %}
+<p class="errornote">{{ error }}</p>
+{% elif not available and not unavailable %}
+<p>No books matched that search.</p>
+{% else %}
+{% if total %}<p>{{ total }} result{{ total|pluralize }}.</p>{% endif %}
+{% if available %}
+<h2>Available for editing</h2>
+<ul>
+{% for book in available %}
+<li><a href="{% url 'edit_book' %}?item={{ book.item }}">{{ book.title }}{% if book.author %} by {{ book.author }}{% endif %} ({{ book.item }})</a></li>
+{% endfor %}
+</ul>
+{% endif %}
+{% if unavailable %}
+<h2>Not available for editing</h2>
+<ul>
+{% for book in unavailable %}
+<li>{{ book.title }}{% if book.author %} by {{ book.author }}{% endif %} ({{ book.item }})</li>
+{% endfor %}
+</ul>
+{% endif %}
+{% endif %}
+{% if prev_url or next_url %}
+<p>
+{% if prev_url %}<a href="{{ prev_url }}">Previous</a>{% endif %}
+{% if prev_url and next_url %} · {% endif %}
+{% if next_url %}<a href="{{ next_url }}">Next</a>{% endif %}
+</p>
+{% endif %}
+{% endblock %}

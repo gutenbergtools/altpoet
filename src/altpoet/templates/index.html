@@ -34,6 +34,10 @@ Please correct the errors below.
 <div>
 To start work, enter a Project Gutenberg book number: <form action="{% url 'edit_book' %}" method="get" id="choose-book"><input type="text" name="item"></form>
 </div>
+<div>
+Search via: <form action="{% url 'search' %}" method="get"><input type="search" name="q"></form>
+Looks at title, author, and subject together. Use or for either word, "quotes" for a phrase.
+</div>
 <p>Or ... log out <a href="{% url 'logout' %}">here</a>.</p>
 {% else %}
 <p>If you would like to become an "Alt Poet" and help us in this endeavor, please email alttext@ebookfoundation.org, and we'll set you up with a log-in.</p>

@@ -30,6 +30,7 @@ from rest_framework import routers, serializers, viewsets
 from altpoet.views import (
     AltViewSet,
     BookEditView,
+    BookSearchView,
     DocumentViewSet,
     HomepageView,
     ImgViewSet,
@@ -49,6 +50,7 @@ router.register(r'user_submissions', UserSubmissionViewSet)
 urlpatterns = [
     path('', HomepageView.as_view(), name='home'),
     path('edit_book/', BookEditView.as_view(), name='edit_book'),
+    path('search/', BookSearchView.as_view(), name='search'),
     path('alttext/', TemplateView.as_view(template_name='alttext.html'), name='alttext'),
     path('api/', include(router.urls)),
     

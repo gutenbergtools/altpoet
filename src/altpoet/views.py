@@ -1,11 +1,18 @@
+import logging
+import re
 from random import randint
+from urllib.parse import urlencode
+
+import requests
 
 from django.conf import settings
+from django.contrib.auth.mixins import LoginRequiredMixin
 from django.contrib.auth.models import Permission, User
 from django.contrib.contenttypes.models import ContentType
 from django.db import transaction
 from django.http import HttpResponse, HttpResponseRedirect
 from django.shortcuts import get_object_or_404
+from django.urls import reverse
 from django.views import generic
 
 from rest_framework import generics, permissions, status, viewsets, exceptions
@@ -30,6 +37,69 @@ from altpoet.serializers import (
     UserSerializer,
     UserSubmissionSerializer,
 )
+
+logger = logging.getLogger(__name__)
+
+OPDS_SORTS = {
+    'relevance': ('Relevance', {'sort': 'relevance'}),
+    'popular': ('Most Popular', {'sort': 'downloads', 'sort_order': 'desc'}),
+    'newest': ('Newest', {'sort': 'release_date', 'sort_order': 'desc'}),
+    'title': ('Title A-Z', {'sort': 'title', 'sort_order': 'asc'}),
+}
+_EBOOK_ID = re.compile(r'(?:/ebooks/|[?&]id=)(\d+)')
+
+
+def _book(pub):
+    meta = pub.get('metadata') or {}
+    blob = (meta.get('identifier') or '') + ''.join(
+        link.get('href') or '' for link in pub.get('links') or [])
+    match = _EBOOK_ID.search(blob)
+    if not match:
+        return None
+    author = meta.get('author') or []
+    if isinstance(author, dict):
+        author = [author]
+    names = []
+    for person in author:
+        name = person.get('name') if isinstance(person, dict) else None
+        if not name:
+            continue
+        parts = name.split(', ', 1)
+        names.append(f'{parts[1]} {parts[0]}' if len(parts) == 2 else name)
+    return {
+        'item': match.group(1),
+        'title': meta.get('title') or '(untitled)',
+        'author': ' and '.join(names),
+    }
+
+
+def opds_search(query, sort_key):
+    books, limit = [], settings.OPDS_SEARCH_LIMIT
+    for page in range(1, 21):
+        params = {'page': page, 'limit': limit, **OPDS_SORTS[sort_key][1]}
+        if query:
+            params['query'] = query
+        resp = requests.get(settings.OPDS_SEARCH_URL, params=params, timeout=15)
+        resp.raise_for_status()
+        data = resp.json()
+        pubs = data.get('publications') or []
+        books.extend(book for book in map(_book, pubs) if book)
+        total = int((data.get('metadata') or {}).get('numberOfItems') or 0)
+        if not pubs or len(books) >= total or len(pubs) < limit:
+            break
+    return books
+
+
+def _search_href(query, sort_key, page=1):
+    params = {}
+    if query:
+        params['q'] = query
+    if sort_key:
+        params['sort'] = sort_key
+    if page > 1:
+        params['page'] = page
+    qs = urlencode(params)
+    return reverse('search') + (f'?{qs}' if qs else '')
 
 
 class HomepageView(generic.TemplateView):
@@ -65,6 +135,45 @@ class BookEditView(generic.View):
                 return HttpResponse("hmmm... that book is not available for editing.")
         else:
             return HttpResponseRedirect(settings.LOGIN_URL)
+
+
+class BookSearchView(LoginRequiredMixin, generic.TemplateView):
+    template_name = 'search.html'
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        query = (self.request.GET.get('q') or '').strip()
+        sort_key = self.request.GET.get('sort') or ('relevance' if query else 'popular')
+        if sort_key not in OPDS_SORTS:
+            sort_key = 'relevance' if query else 'popular'
+        try:
+            page = max(1, int(self.request.GET.get('page') or 1))
+        except (TypeError, ValueError):
+            page = 1
+
+        books, error = [], None
+        try:
+            books = opds_search(query, sort_key)
+        except (requests.RequestException, ValueError) as exc:
+            logger.warning('OPDS search failed: %s', exc)
+            error = 'Search is unavailable right now. Please try again.'
+
+        editable = set(Document.objects.filter(
+            item__in=[book['item'] for book in books]
+        ).values_list('item', flat=True))
+        ordered = [book for book in books if book['item'] in editable] + [
+            book for book in books if book['item'] not in editable]
+        limit, start = settings.OPDS_SEARCH_LIMIT, (page - 1) * settings.OPDS_SEARCH_LIMIT
+        page_books = ordered[start:start + limit]
+        context.update(
+            q=query, sort=sort_key, error=error, total=len(ordered),
+            available=[book for book in page_books if book['item'] in editable],
+            unavailable=[book for book in page_books if book['item'] not in editable],
+            sorts=[(key, label, _search_href(query, key)) for key, (label, _) in OPDS_SORTS.items()],
+            prev_url=_search_href(query, sort_key, page - 1) if page > 1 else '',
+            next_url=_search_href(query, sort_key, page + 1) if start + limit < len(ordered) else '',
+        )
+        return context
 
 
 class UserViewSet(viewsets.ModelViewSet):
