@@ -37,11 +37,4 @@
 </ul>
 {% endif %}
 {% endif %}
-{% if prev_url or next_url %}
-<p>
-{% if prev_url %}<a href="{{ prev_url }}">Previous</a>{% endif %}
-{% if prev_url and next_url %} · {% endif %}
-{% if next_url %}<a href="{{ next_url }}">Next</a>{% endif %}
-</p>
-{% endif %}
 {% endblock %}

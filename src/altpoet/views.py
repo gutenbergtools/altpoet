@@ -90,14 +90,12 @@ def opds_search(query, sort_key):
     return books
 
 
-def _search_href(query, sort_key, page=1):
+def _search_href(query, sort_key):
     params = {}
     if query:
         params['q'] = query
     if sort_key:
         params['sort'] = sort_key
-    if page > 1:
-        params['page'] = page
     qs = urlencode(params)
     return reverse('search') + (f'?{qs}' if qs else '')
 
@@ -146,11 +144,6 @@ class BookSearchView(LoginRequiredMixin, generic.TemplateView):
         sort_key = self.request.GET.get('sort') or ('relevance' if query else 'popular')
         if sort_key not in OPDS_SORTS:
             sort_key = 'relevance' if query else 'popular'
-        try:
-            page = max(1, int(self.request.GET.get('page') or 1))
-        except (TypeError, ValueError):
-            page = 1
-
         books, error = [], None
         try:
             books = opds_search(query, sort_key)
@@ -161,17 +154,11 @@ class BookSearchView(LoginRequiredMixin, generic.TemplateView):
         editable = set(Document.objects.filter(
             item__in=[book['item'] for book in books]
         ).values_list('item', flat=True))
-        ordered = [book for book in books if book['item'] in editable] + [
-            book for book in books if book['item'] not in editable]
-        limit, start = settings.OPDS_SEARCH_LIMIT, (page - 1) * settings.OPDS_SEARCH_LIMIT
-        page_books = ordered[start:start + limit]
         context.update(
-            q=query, sort=sort_key, error=error, total=len(ordered),
-            available=[book for book in page_books if book['item'] in editable],
-            unavailable=[book for book in page_books if book['item'] not in editable],
+            q=query, sort=sort_key, error=error, total=len(books),
+            available=[book for book in books if book['item'] in editable],
+            unavailable=[book for book in books if book['item'] not in editable],
             sorts=[(key, label, _search_href(query, key)) for key, (label, _) in OPDS_SORTS.items()],
-            prev_url=_search_href(query, sort_key, page - 1) if page > 1 else '',
-            next_url=_search_href(query, sort_key, page + 1) if start + limit < len(ordered) else '',
         )
         return context
 
