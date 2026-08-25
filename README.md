@@ -162,7 +162,7 @@ Finally wire up and start all the services as root:
        </Directory>
 
        SSLProxyEngine On
-       ProxyPass "/cache" "https://gutenberg.org/cache/"
+       ProxyPass "/cache" "https://www.gutenberg.org/cache/"
 
        Alias /alttexteditor /var/lib/altpoet/alt-text-editor/alt-text-react-app/dist
 
