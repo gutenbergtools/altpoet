@@ -2,7 +2,6 @@ from urllib.parse import urljoin
 
 from django.conf import settings
 from django.db import models
-from django.utils import timezone
 
 from django.utils.translation import gettext_lazy as _
 
@@ -41,9 +40,6 @@ class Document(models.Model):
     base = models.CharField(max_length=80, default="")
     
     created = models.DateTimeField(auto_now_add=True, db_index=True)
-
-    # when preferred alt text last changed; ebookmaker polls on this
-    alts_updated = models.DateTimeField(default=timezone.now, db_index=True)
 
     lang = models.CharField(max_length=10, default="en")
 

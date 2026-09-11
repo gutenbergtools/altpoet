@@ -6,7 +6,6 @@ from django.contrib.contenttypes.models import ContentType
 from django.db import transaction
 from django.http import HttpResponse, HttpResponseRedirect
 from django.shortcuts import get_object_or_404
-from django.utils.dateparse import parse_datetime
 from django.views import generic
 
 from rest_framework import generics, permissions, status, viewsets, exceptions
@@ -26,7 +25,6 @@ from altpoet.models import (
 
 from altpoet.serializers import (
     AltSerializer,
-    DocumentChangedSerializer,
     DocumentSerializer,
     ImgSerializer,
     UserSerializer,
@@ -111,30 +109,6 @@ class DocumentViewSet(viewsets.ModelViewSet):
     queryset = Document.objects.all().order_by('item')
     serializer_class = DocumentSerializer
     permission_classes = [IsAuthenticatedOrEbookmakerKey]
-
-    def get_queryset(self):
-        ''' with ?changed_since, return only documents whose preferred alt text changed after that time '''
-        queryset = super().get_queryset()
-        since = self.request.query_params.get('changed_since')
-        if since is not None:
-            since = parse_datetime(since)
-            if since is None:
-                raise exceptions.ValidationError(
-                    {'changed_since': 'use an ISO 8601 datetime, e.g. 2026-07-20T00:00:00Z'})
-            queryset = queryset.filter(alts_updated__gt=since)
-        return queryset
-
-    def get_serializer_class(self):
-        ''' changed_since polling returns just item + alts_updated '''
-        if self.action == 'list' and 'changed_since' in self.request.query_params:
-            return DocumentChangedSerializer
-        return super().get_serializer_class()
-
-    def paginate_queryset(self, queryset):
-        if 'changed_since' in self.request.query_params:
-            return None
-        return super().paginate_queryset(queryset)
-
 
     # same as get_project_item, but doesn't serialize and return document
     # for checking if doc exists in database before loading page
