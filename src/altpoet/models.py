@@ -40,7 +40,7 @@ class Document(models.Model):
     base = models.CharField(max_length=80, default="")
     
     created = models.DateTimeField(auto_now_add=True, db_index=True)
-    
+
     lang = models.CharField(max_length=10, default="en")
 
     NO_PROGRESS = 0

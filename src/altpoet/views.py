@@ -32,6 +32,22 @@ from altpoet.serializers import (
 )
 
 
+class IsAuthenticatedOrEbookmakerKey(permissions.BasePermission):
+    ''' logged-in users get normal access; the ebookmaker API key gets read-only access '''
+    def has_permission(self, request, view):
+        if request.user.is_authenticated:
+            return True
+        return (request.method in permissions.SAFE_METHODS and
+                bool(settings.EBOOKMAKER_API_KEY) and
+                request.headers.get('X-Api-Key') == settings.EBOOKMAKER_API_KEY)
+
+    @staticmethod
+    def is_ebookmaker(request):
+        return (not request.user.is_authenticated and
+                bool(settings.EBOOKMAKER_API_KEY) and
+                request.headers.get('X-Api-Key') == settings.EBOOKMAKER_API_KEY)
+
+
 class HomepageView(generic.TemplateView):
     template_name = 'index.html'
 
@@ -89,8 +105,7 @@ class DocumentViewSet(viewsets.ModelViewSet):
     """
     queryset = Document.objects.all().order_by('item')
     serializer_class = DocumentSerializer
-    permission_classes = [permissions.IsAuthenticated]
-
+    permission_classes = [IsAuthenticatedOrEbookmakerKey]
 
     # same as get_project_item, but doesn't serialize and return document
     # for checking if doc exists in database before loading page
@@ -187,6 +202,10 @@ class DocumentViewSet(viewsets.ModelViewSet):
         except Document.DoesNotExist:
             return Response({'detail': "Document Doesn't Exist"},
                 status=status.HTTP_400_BAD_REQUEST)
+        if IsAuthenticatedOrEbookmakerKey.is_ebookmaker(request):
+            alt_map = {img.img_id: img.alt.text
+                       for img in document.imgs.select_related('alt') if img.alt}
+            return Response(alt_map, status=status.HTTP_200_OK)
         serializer = DocumentSerializer(document)
         return Response(serializer.data, status=status.HTTP_200_OK)
 
