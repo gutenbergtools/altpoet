@@ -13,6 +13,7 @@ django-cors-headers = "*"
 gunicorn = "*"
 anthropic = "*"
 requests = "*"
+uwsgi = "*"
 
 [dev-packages]
 jupyter = "*"

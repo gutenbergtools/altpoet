@@ -189,6 +189,7 @@ LOGGING = {
 LOGIN_REDIRECT_URL = "/"
 LOGOUT_REDIRECT_URL = "/"
 
-# key that ebookmaker uses to fetch preferred alt text, change  in production
-EBOOKMAKER_API_KEY = os.environ.get('EBOOKMAKER_API_KEY', 'test123')
-
+# secret key that ebookmaker uses to fetch preferred alt text, enter the value in local_settings
+EBOOKMAKER_API_KEY = ""
+# secret key that ebookmaker uses to fetch access Anthropic, enter the value in local_settings
+ANTHROPIC_API_KEY = ""
