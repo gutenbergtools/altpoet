@@ -125,6 +125,7 @@ def ai_alts(document):
                 max_tokens=2048,
                 messages=message_list,
                 thinking={"type": "disabled"},
+                output_config={"effort": "low"},
             )
             new_alt = Alt(img=img, source=ai_agent(), text=response.content[0].text)
             new_alt.save()
