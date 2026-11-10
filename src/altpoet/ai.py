@@ -14,7 +14,7 @@ client = Anthropic(
 )
 
 #MODEL_NAME = "claude-3-opus-20240229"
-MODEL_NAME = "claude-3-haiku-20240307"
+MODEL_NAME = "claude-haiku-5-5"
 def ai_agent():
     Agent = apps.get_model('altpoet', 'Agent')
     agent, created = Agent.objects.get_or_create(name=MODEL_NAME)
@@ -119,11 +119,12 @@ def ai_alts(document):
         try:
             new_alt = Alt.objects.get(img=img, source=ai_agent())
         except Alt.DoesNotExist:
+            # Haiku 5.5 rejects temperature; thinking is on by default—turn it off for concise alts.
             response = client.messages.create(
                 model=MODEL_NAME,
                 max_tokens=2048,
                 messages=message_list,
-                temperature=0.0
+                thinking={"type": "disabled"},
             )
             new_alt = Alt(img=img, source=ai_agent(), text=response.content[0].text)
             new_alt.save()
