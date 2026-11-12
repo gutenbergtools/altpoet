@@ -32,6 +32,16 @@ from altpoet.serializers import (
 )
 
 
+class IsAuthenticated(permissions.BasePermission):
+    ''' logged-in users, or ebookmaker API key on safe methods '''
+    def has_permission(self, request, view):
+        if request.user.is_authenticated:
+            return True
+        return (request.method in permissions.SAFE_METHODS and
+                bool(settings.EBOOKMAKER_API_KEY) and
+                request.headers.get('X-Api-Key') == settings.EBOOKMAKER_API_KEY)
+
+
 class HomepageView(generic.TemplateView):
     template_name = 'index.html'
 
@@ -89,8 +99,7 @@ class DocumentViewSet(viewsets.ModelViewSet):
     """
     queryset = Document.objects.all().order_by('item')
     serializer_class = DocumentSerializer
-    permission_classes = [permissions.IsAuthenticated]
-
+    permission_classes = [IsAuthenticated]
 
     # same as get_project_item, but doesn't serialize and return document
     # for checking if doc exists in database before loading page
@@ -324,10 +333,11 @@ class ImgViewSet(viewsets.ModelViewSet):
 class AltViewSet(viewsets.ModelViewSet, generics.CreateAPIView):
     """
     API endpoint that allows alt text to be viewed or edited.
+    Ebookmaker API key gets read-only access (list/retrieve by id).
     """
     queryset = Alt.objects.all().order_by('-created')
     serializer_class = AltSerializer
-    permission_classes = [permissions.IsAuthenticated]
+    permission_classes = [IsAuthenticated]
 
     def calculate_vote(self, curr_vote, next_vote):
         if(curr_vote == next_vote):
