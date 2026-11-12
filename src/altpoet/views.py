@@ -32,18 +32,12 @@ from altpoet.serializers import (
 )
 
 
-class IsAuthenticatedOrEbookmakerKey(permissions.BasePermission):
-    ''' logged-in users get normal access; the ebookmaker API key gets read-only access '''
+class IsAuthenticated(permissions.BasePermission):
+    ''' logged-in users, or ebookmaker API key on safe methods '''
     def has_permission(self, request, view):
         if request.user.is_authenticated:
             return True
         return (request.method in permissions.SAFE_METHODS and
-                bool(settings.EBOOKMAKER_API_KEY) and
-                request.headers.get('X-Api-Key') == settings.EBOOKMAKER_API_KEY)
-
-    @staticmethod
-    def is_ebookmaker(request):
-        return (not request.user.is_authenticated and
                 bool(settings.EBOOKMAKER_API_KEY) and
                 request.headers.get('X-Api-Key') == settings.EBOOKMAKER_API_KEY)
 
@@ -105,7 +99,7 @@ class DocumentViewSet(viewsets.ModelViewSet):
     """
     queryset = Document.objects.all().order_by('item')
     serializer_class = DocumentSerializer
-    permission_classes = [IsAuthenticatedOrEbookmakerKey]
+    permission_classes = [IsAuthenticated]
 
     # same as get_project_item, but doesn't serialize and return document
     # for checking if doc exists in database before loading page
@@ -202,10 +196,6 @@ class DocumentViewSet(viewsets.ModelViewSet):
         except Document.DoesNotExist:
             return Response({'detail': "Document Doesn't Exist"},
                 status=status.HTTP_400_BAD_REQUEST)
-        if IsAuthenticatedOrEbookmakerKey.is_ebookmaker(request):
-            alt_map = {img.img_id: img.alt.text
-                       for img in document.imgs.select_related('alt') if img.alt}
-            return Response(alt_map, status=status.HTTP_200_OK)
         serializer = DocumentSerializer(document)
         return Response(serializer.data, status=status.HTTP_200_OK)
 
@@ -343,10 +333,11 @@ class ImgViewSet(viewsets.ModelViewSet):
 class AltViewSet(viewsets.ModelViewSet, generics.CreateAPIView):
     """
     API endpoint that allows alt text to be viewed or edited.
+    Ebookmaker API key gets read-only access (list/retrieve by id).
     """
     queryset = Alt.objects.all().order_by('-created')
     serializer_class = AltSerializer
-    permission_classes = [permissions.IsAuthenticated]
+    permission_classes = [IsAuthenticated]
 
     def calculate_vote(self, curr_vote, next_vote):
         if(curr_vote == next_vote):
