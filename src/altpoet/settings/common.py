@@ -191,5 +191,7 @@ LOGOUT_REDIRECT_URL = "/"
 
 # secret key that ebookmaker uses to fetch preferred alt text, enter the value in local_settings
 EBOOKMAKER_API_KEY = ""
+# secret key that ebookconverter uses to fetch and ack changed books, enter the value in local_settings
+EBOOKCONVERTER_API_KEY = ""
 # secret key that ebookmaker uses to fetch access Anthropic, enter the value in local_settings
 ANTHROPIC_API_KEY = ""

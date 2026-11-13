@@ -57,6 +57,9 @@ class Document(models.Model):
 
     review_urgency = models.IntegerField(default=0)
 
+    # set on editor save; ebookconverter rebuilds books changed in the last hour
+    alts_updated = models.DateTimeField(null=True, db_index=True)
+
     @property
     def url(self):
         if self.project:
