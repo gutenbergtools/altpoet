@@ -6,6 +6,8 @@ from django.contrib.contenttypes.models import ContentType
 from django.db import transaction
 from django.http import HttpResponse, HttpResponseRedirect
 from django.shortcuts import get_object_or_404
+from django.utils import timezone
+from django.utils.dateparse import parse_datetime
 from django.views import generic
 
 from rest_framework import generics, permissions, status, viewsets, exceptions
@@ -40,6 +42,13 @@ class IsAuthenticated(permissions.BasePermission):
         return (request.method in permissions.SAFE_METHODS and
                 bool(settings.EBOOKMAKER_API_KEY) and
                 request.headers.get('X-Api-Key') == settings.EBOOKMAKER_API_KEY)
+
+
+class IsEbookconverter(permissions.BasePermission):
+    ''' ebookconverter API key '''
+    def has_permission(self, request, view):
+        return (bool(settings.EBOOKCONVERTER_API_KEY) and
+                request.headers.get('X-Api-Key') == settings.EBOOKCONVERTER_API_KEY)
 
 
 class HomepageView(generic.TemplateView):
@@ -178,6 +187,20 @@ class DocumentViewSet(viewsets.ModelViewSet):
         return Response({'status': document.status, 'detail': "OK"}, status=status.HTTP_200_OK)
 
 
+    @action(detail=False, methods=["GET", "POST"], permission_classes=[IsEbookconverter])
+    def changed(self, request, *args, **kwargs):
+        ''' GET: books saved since their last rebuild.
+            POST {"before": <GET's before>}: ack them; books saved after that stay queued. '''
+        if request.method == 'POST':
+            before = parse_datetime(request.data.get('before') or '')
+            if before is None:
+                return Response({'detail': 'before required'}, status=status.HTTP_400_BAD_REQUEST)
+            Document.objects.filter(alts_updated__lte=before).update(alts_updated=None)
+            return Response({'detail': 'ok'}, status=status.HTTP_200_OK)
+        before = timezone.now()
+        items = Document.objects.filter(alts_updated__lte=before).values_list('item', flat=True)
+        return Response({'items': list(items), 'before': before}, status=status.HTTP_200_OK)
+
     @action(detail=False, methods=["GET"], url_path='get-project-item', 
             url_name='get-project-item')
     def get_project_item(self, request, *args, **kwargs):
@@ -263,6 +286,8 @@ class UserSubmissionViewSet(viewsets.ModelViewSet):
                     source=source)
                 self.update_img_alt_texts(user_alt_text_json, document, source, user_sub,
                         request.user, request.user.username)
+                document.alts_updated = timezone.now()
+                document.save()
         except Img.DoesNotExist:
             return Response({'detail': 'Img not found' }, status=status.HTTP_404_NOT_FOUND)
         except Agent.DoesNotExist:
